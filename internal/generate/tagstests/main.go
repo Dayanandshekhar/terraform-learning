@@ -152,7 +152,9 @@ type ResourceDatum struct {
 	ProviderNameUpper string
 	Name              string
 	TypeName          string
+	DestroyTakesT     bool
 	ExistsTypeName    string
+	ExistsTakesT      bool
 	FileName          string
 	Generator         string
 	NoImport          bool
@@ -308,6 +310,15 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 
 			case "Testing":
 				args := common.ParseArgs(m[3])
+
+				if attr, ok := args.Keyword["destroyTakesT"]; ok {
+					if b, err := strconv.ParseBool(attr); err != nil {
+						v.errs = append(v.errs, fmt.Errorf("invalid destroyTakesT value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
+						continue
+					} else {
+						d.DestroyTakesT = b
+					}
+				}
 				if attr, ok := args.Keyword["existsType"]; ok {
 					if typeName, importSpec, err := parseIdentifierSpec(attr); err != nil {
 						v.errs = append(v.errs, fmt.Errorf("%s: %w", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName), err))
@@ -317,6 +328,14 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 						if importSpec != nil {
 							d.GoImports = append(d.GoImports, *importSpec)
 						}
+					}
+				}
+				if attr, ok := args.Keyword["existsTakesT"]; ok {
+					if b, err := strconv.ParseBool(attr); err != nil {
+						v.errs = append(v.errs, fmt.Errorf("invalid existsTakesT value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
+						continue
+					} else {
+						d.ExistsTakesT = b
 					}
 				}
 				if attr, ok := args.Keyword["generator"]; ok {
@@ -356,7 +375,6 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 					} else {
 						d.NoImport = b
 					}
-
 				}
 				if attr, ok := args.Keyword["preCheck"]; ok {
 					if b, err := strconv.ParseBool(attr); err != nil {
