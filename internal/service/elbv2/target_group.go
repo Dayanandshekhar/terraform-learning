@@ -326,6 +326,57 @@ func ResourceTargetGroup() *schema.Resource {
 					},
 				},
 			},
+			"target_group_health": {
+				Type:     schema.TypeList,
+				Optional: true,
+				Computed: true,
+				MaxItems: 1,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"dns_failover": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"minimum_healthy_targets_count": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "off",
+										ValidateFunc: validTargetGroupHealthInput,
+									},
+									"minimum_healthy_targets_percentage": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "off",
+										ValidateFunc: validTargetGroupHealthPercentageInput,
+									},
+								},
+							},
+						},
+						"unhealthy_state_routing": {
+							Type:     schema.TypeList,
+							Optional: true,
+							MaxItems: 1,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"minimum_healthy_targets_count": {
+										Type:     schema.TypeInt,
+										Optional: true,
+										Default:  1,
+									},
+									"minimum_healthy_targets_percentage": {
+										Type:         schema.TypeString,
+										Optional:     true,
+										Default:      "off",
+										ValidateFunc: validTargetGroupHealthPercentageInput,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 			"target_type": {
 				Type:         schema.TypeString,
 				Optional:     true,
@@ -481,6 +532,10 @@ func resourceTargetGroupCreate(ctx context.Context, d *schema.ResourceData, meta
 		if v, ok := d.GetOk("target_health_state"); ok && len(v.([]interface{})) > 0 && v.([]interface{})[0] != nil {
 			attributes = append(attributes, expandTargetGroupTargetHealthStateAttributes(v.([]interface{})[0].(map[string]interface{}), protocol)...)
 		}
+
+		if v, ok := d.GetOk("target_group_health"); ok && len(v.([]interface{})) > 0 && v.([]interface{})[0] != nil {
+			attributes = append(attributes, expandTargetGroupHealthAttributes(v.([]interface{})[0].(map[string]interface{}))...)
+		}
 	}
 
 	attributes = append(attributes, targetGroupAttributes.expand(d, targetType, false)...)
@@ -580,6 +635,10 @@ func resourceTargetGroupRead(ctx context.Context, d *schema.ResourceData, meta i
 		return sdkdiag.AppendErrorf(diags, "setting target_health_state: %s", err)
 	}
 
+	if err := d.Set("target_group_health", []interface{}{flattenTargetGroupHealthAttributes(attributes)}); err != nil {
+		return sdkdiag.AppendErrorf(diags, "setting target_group_health: %s", err)
+	}
+
 	targetGroupAttributes.flatten(d, targetType, attributes)
 
 	return diags
@@ -661,6 +720,12 @@ func resourceTargetGroupUpdate(ctx context.Context, d *schema.ResourceData, meta
 		if d.HasChange("target_health_state") {
 			if v, ok := d.GetOk("target_health_state"); ok && len(v.([]interface{})) > 0 && v.([]interface{})[0] != nil {
 				attributes = append(attributes, expandTargetGroupTargetHealthStateAttributes(v.([]interface{})[0].(map[string]interface{}), protocol)...)
+			}
+		}
+
+		if d.HasChange("target_group_health") {
+			if v, ok := d.GetOk("target_group_health"); ok && len(v.([]interface{})) > 0 && v.([]interface{})[0] != nil {
+				attributes = append(attributes, expandTargetGroupHealthAttributes(v.([]interface{})[0].(map[string]interface{}))...)
 			}
 		}
 	}
@@ -1279,6 +1344,78 @@ func flattenTargetGroupTargetHealthStateAttributes(apiObjects []*elbv2.TargetGro
 			}
 		}
 	}
+
+	return tfMap
+}
+
+func expandTargetGroupHealthAttributes(tfMap map[string]interface{}) []*elbv2.TargetGroupAttribute {
+	if tfMap == nil {
+		return nil
+	}
+
+	var apiObjects []*elbv2.TargetGroupAttribute
+
+	if dnsFailoverMap, ok := tfMap["dns_failover"].([]interface{})[0].(map[string]interface{}); ok {
+		apiObjects = append(apiObjects,
+			&elbv2.TargetGroupAttribute{
+				Key:   aws.String(targetGroupAttributeTargetGroupHealthDNSFailoverMinimumHealthyTargetsCount),
+				Value: aws.String(dnsFailoverMap["minimum_healthy_targets_count"].(string)),
+			},
+			&elbv2.TargetGroupAttribute{
+				Key:   aws.String(targetGroupAttributeTargetGroupHealthDNSFailoverMinimumHealthyTargetsPercentage),
+				Value: aws.String(dnsFailoverMap["minimum_healthy_targets_percentage"].(string)),
+			},
+		)
+	}
+
+	if unhealthyStateRoutingMap, ok := tfMap["unhealthy_state_routing"].([]interface{})[0].(map[string]interface{}); ok {
+		apiObjects = append(apiObjects,
+			&elbv2.TargetGroupAttribute{
+				Key:   aws.String(targetGroupAttributeTargetGroupHealthUnhealthyStateRoutingMinimumHealthyTargetsCount),
+				Value: flex.IntValueToString(unhealthyStateRoutingMap["minimum_healthy_targets_count"].(int)),
+			},
+			&elbv2.TargetGroupAttribute{
+				Key:   aws.String(targetGroupAttributeTargetGroupHealthUnhealthyStateRoutingMinimumHealthyTargetsPercentage),
+				Value: aws.String(unhealthyStateRoutingMap["minimum_healthy_targets_percentage"].(string)),
+			},
+		)
+	}
+
+	return apiObjects
+}
+
+func flattenTargetGroupHealthAttributes(apiObjects []*elbv2.TargetGroupAttribute) map[string]interface{} {
+	if len(apiObjects) == 0 {
+		return nil
+	}
+
+	tfMap := map[string]interface{}{
+		"dns_failover":            make([]map[string]interface{}, 0),
+		"unhealthy_state_routing": make([]map[string]interface{}, 0),
+	}
+
+	dnsFailoverMap := make(map[string]interface{})
+	unhealthyStateRoutingMap := make(map[string]interface{})
+
+	for _, apiObject := range apiObjects {
+		switch k, v := aws.StringValue(apiObject.Key), aws.StringValue(apiObject.Value); k {
+		case "target_group_health.dns_failover.minimum_healthy_targets.count":
+			dnsFailoverMap["minimum_healthy_targets_count"] = v
+		case "target_group_health.dns_failover.minimum_healthy_targets.percentage":
+			dnsFailoverMap["minimum_healthy_targets_percentage"] = v
+		case "target_group_health.unhealthy_state_routing.minimum_healthy_targets.count":
+			intV, err := strconv.Atoi(v)
+			if err != nil {
+				panic(err)
+			}
+			unhealthyStateRoutingMap["minimum_healthy_targets_count"] = intV
+		case "target_group_health.unhealthy_state_routing.minimum_healthy_targets.percentage":
+			unhealthyStateRoutingMap["minimum_healthy_targets_percentage"] = v
+		}
+	}
+
+	tfMap["dns_failover"] = append(tfMap["dns_failover"].([]map[string]interface{}), dnsFailoverMap)
+	tfMap["unhealthy_state_routing"] = append(tfMap["unhealthy_state_routing"].([]map[string]interface{}), unhealthyStateRoutingMap)
 
 	return tfMap
 }
