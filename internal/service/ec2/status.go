@@ -15,38 +15,6 @@ import (
 	"github.com/hashicorp/terraform-provider-aws/internal/tfresource"
 )
 
-func StatusAvailabilityZoneGroupOptInStatus(ctx context.Context, conn *ec2.EC2, name string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindAvailabilityZoneGroupByName(ctx, conn, name)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.OptInStatus), nil
-	}
-}
-
-func StatusCapacityReservationState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindCapacityReservationByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State), nil
-	}
-}
-
 // StatusLocalGatewayRouteTableVPCAssociationState fetches the LocalGatewayRouteTableVpcAssociation and its State
 func StatusLocalGatewayRouteTableVPCAssociationState(ctx context.Context, conn *ec2.EC2, localGatewayRouteTableVpcAssociationID string) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
@@ -78,168 +46,6 @@ func StatusLocalGatewayRouteTableVPCAssociationState(ctx context.Context, conn *
 		}
 
 		return association, aws.StringValue(association.State), nil
-	}
-}
-
-func StatusFleetState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		// Don't call FindFleetByID as it maps useful status codes to NotFoundError.
-		output, err := FindFleet(ctx, conn, &ec2.DescribeFleetsInput{
-			FleetIds: aws.StringSlice([]string{id}),
-		})
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.FleetState), nil
-	}
-}
-
-func StatusImageState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindImageByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State), nil
-	}
-}
-
-// StatusInstanceIAMInstanceProfile fetches the Instance and its IamInstanceProfile
-//
-// The EC2 API accepts a name and always returns an ARN, so it is converted
-// back to the name to prevent unexpected differences.
-func StatusInstanceIAMInstanceProfile(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		instance, err := FindInstanceByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		if instance.IamInstanceProfile == nil || instance.IamInstanceProfile.Arn == nil {
-			return instance, "", nil
-		}
-
-		name, err := InstanceProfileARNToName(aws.StringValue(instance.IamInstanceProfile.Arn))
-
-		if err != nil {
-			return instance, "", err
-		}
-
-		return instance, name, nil
-	}
-}
-
-func StatusInstanceState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		// Don't call FindInstanceByID as it maps useful status codes to NotFoundError.
-		output, err := FindInstance(ctx, conn, &ec2.DescribeInstancesInput{
-			InstanceIds: aws.StringSlice([]string{id}),
-		})
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State.Name), nil
-	}
-}
-
-func StatusInstanceCapacityReservationSpecificationEquals(ctx context.Context, conn *ec2.EC2, id string, expectedValue *ec2.CapacityReservationSpecification) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindInstanceByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output.CapacityReservationSpecification, strconv.FormatBool(capacityReservationSpecificationResponsesEqual(output.CapacityReservationSpecification, expectedValue)), nil
-	}
-}
-
-func StatusInstanceMaintenanceOptionsAutoRecovery(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindInstanceByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		if v := output.MaintenanceOptions; v != nil {
-			return v, aws.StringValue(v.AutoRecovery), nil
-		}
-
-		return nil, "", nil
-	}
-}
-
-func StatusInstanceMetadataOptionsState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindInstanceByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		if output.MetadataOptions == nil {
-			return nil, "", nil
-		}
-
-		return output.MetadataOptions, aws.StringValue(output.MetadataOptions.State), nil
-	}
-}
-
-func StatusInstanceRootBlockDeviceDeleteOnTermination(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindInstanceByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		for _, v := range output.BlockDeviceMappings {
-			if aws.StringValue(v.DeviceName) == aws.StringValue(output.RootDeviceName) && v.Ebs != nil {
-				return v.Ebs, strconv.FormatBool(aws.BoolValue(v.Ebs.DeleteOnTermination)), nil
-			}
-		}
-
-		return nil, "", nil
 	}
 }
 
@@ -308,57 +114,6 @@ func StatusSecurityGroup(ctx context.Context, conn *ec2.EC2, id string) retry.St
 		}
 
 		return output, SecurityGroupStatusCreated, nil
-	}
-}
-
-func StatusSpotFleetActivityStatus(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindSpotFleetRequestByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.ActivityStatus), nil
-	}
-}
-
-func StatusSpotFleetRequestState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		// Don't call FindSpotFleetRequestByID as it maps useful status codes to NotFoundError.
-		output, err := FindSpotFleetRequest(ctx, conn, &ec2.DescribeSpotFleetRequestsInput{
-			SpotFleetRequestIds: aws.StringSlice([]string{id}),
-		})
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.SpotFleetRequestState), nil
-	}
-}
-
-func StatusSpotInstanceRequest(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindSpotInstanceRequestByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.Status.Code), nil
 	}
 }
 
@@ -752,54 +507,6 @@ func StatusTransitGatewayVPCAttachmentState(ctx context.Context, conn *ec2.EC2, 
 	}
 }
 
-func StatusVolumeState(ctx context.Context, conn *ec2_sdkv2.Client, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindEBSVolumeByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, string(output.State), nil
-	}
-}
-
-func StatusVolumeAttachmentState(ctx context.Context, conn *ec2.EC2, volumeID, instanceID, deviceName string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindVolumeAttachment(ctx, conn, volumeID, instanceID, deviceName)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State), nil
-	}
-}
-
-func StatusVolumeModificationState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindVolumeModificationByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.ModificationState), nil
-	}
-}
-
 func StatusVPCCIDRBlockAssociationState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
 		output, _, err := FindVPCCIDRBlockAssociationByID(ctx, conn, id)
@@ -887,22 +594,6 @@ func statusEIPDomainNameAttribute(ctx context.Context, conn *ec2_sdkv2.Client, a
 	}
 }
 
-func StatusHostState(ctx context.Context, conn *ec2.EC2, id string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindHostByID(ctx, conn, id)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State), nil
-	}
-}
-
 func StatusInternetGatewayAttachmentState(ctx context.Context, conn *ec2.EC2, internetGatewayID, vpcID string) retry.StateRefreshFunc {
 	return func() (interface{}, string, error) {
 		output, err := FindInternetGatewayAttachment(ctx, conn, internetGatewayID, vpcID)
@@ -980,22 +671,6 @@ func StatusNetworkInterfaceAttachmentStatus(ctx context.Context, conn *ec2.EC2, 
 		}
 
 		return output, aws.StringValue(output.Status), nil
-	}
-}
-
-func StatusPlacementGroupState(ctx context.Context, conn *ec2.EC2, name string) retry.StateRefreshFunc {
-	return func() (interface{}, string, error) {
-		output, err := FindPlacementGroupByName(ctx, conn, name)
-
-		if tfresource.NotFound(err) {
-			return nil, "", nil
-		}
-
-		if err != nil {
-			return nil, "", err
-		}
-
-		return output, aws.StringValue(output.State), nil
 	}
 }
 

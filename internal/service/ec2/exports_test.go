@@ -46,18 +46,22 @@ var (
 	ResourceVPNGatewayRoutePropagation       = resourceVPNGatewayRoutePropagation
 
 	CustomFiltersSchema                                    = customFiltersSchema
-	FindAvailabilityZonesV2                                = findAvailabilityZonesV2
+	FindAvailabilityZones                                  = findAvailabilityZones
 	FindCarrierGatewayByID                                 = findCarrierGatewayByID
 	FindClientVPNAuthorizationRuleByThreePartKey           = findClientVPNAuthorizationRuleByThreePartKey
 	FindClientVPNEndpointByID                              = findClientVPNEndpointByID
 	FindClientVPNNetworkAssociationByTwoPartKey            = findClientVPNNetworkAssociationByTwoPartKey
 	FindClientVPNRouteByThreePartKey                       = findClientVPNRouteByThreePartKey
+	FindCapacityReservationByID                            = findCapacityReservationByID
 	FindCustomerGatewayByID                                = findCustomerGatewayByID
 	FindEBSVolumeAttachment                                = findVolumeAttachment
 	FindEIPByAllocationID                                  = findEIPByAllocationID
 	FindEIPByAssociationID                                 = findEIPByAssociationID
 	FindEIPDomainNameAttributeByAllocationID               = findEIPDomainNameAttributeByAllocationID
 	FindFastSnapshotRestoreByTwoPartKey                    = findFastSnapshotRestoreByTwoPartKey
+	FindFleetByID                                          = findFleetByID
+	FindHostByID                                           = findHostByID
+	FindImageLaunchPermission                              = findImageLaunchPermission
 	FindInstanceMetadataDefaults                           = findInstanceMetadataDefaults
 	FindIPAMByID                                           = findIPAMByID
 	FindIPAMPoolAllocationByTwoPartKey                     = findIPAMPoolAllocationByTwoPartKey
@@ -66,15 +70,24 @@ var (
 	FindIPAMResourceDiscoveryAssociationByID               = findIPAMResourceDiscoveryAssociationByID
 	FindIPAMResourceDiscoveryByID                          = findIPAMResourceDiscoveryByID
 	FindIPAMScopeByID                                      = findIPAMScopeByID
+	FindInstanceStateByID                                  = findInstanceStateByID
 	FindKeyPairByName                                      = findKeyPairByName
 	FindMainRouteTableAssociationByID                      = findMainRouteTableAssociationByID
+	FindLaunchTemplateByID                                 = findLaunchTemplateByID
 	FindNetworkACLByIDV2                                   = findNetworkACLByIDV2
 	FindNetworkInterfaceByIDV2                             = findNetworkInterfaceByIDV2
+	FindPlacementGroupByName                               = findPlacementGroupByName
+	FindPublicIPv4Pools                                    = findPublicIPv4Pools
 	FindRouteByIPv4DestinationV2                           = findRouteByIPv4Destination
 	FindRouteByIPv6DestinationV2                           = findRouteByIPv6Destination
 	FindRouteByPrefixListIDDestinationV2                   = findRouteByPrefixListIDDestination
 	FindRouteTableAssociationByIDV2                        = findRouteTableAssociationByID
 	FindRouteTableByIDV2                                   = findRouteTableByID
+	FindSpotDatafeedSubscription                           = findSpotDatafeedSubscription
+	FindSpotFleetRequestByID                               = findSpotFleetRequestByID
+	FindSpotFleetRequests                                  = findSpotFleetRequests
+	FindSpotInstanceRequestByID                            = findSpotInstanceRequestByID
+	FindSubnetsV2                                          = findSubnetsV2
 	FindVolumeAttachmentInstanceByID                       = findVolumeAttachmentInstanceByID
 	FindVPCEndpointByIDV2                                  = findVPCEndpointByIDV2
 	FindVPCEndpointConnectionByServiceIDAndVPCEndpointIDV2 = findVPCEndpointConnectionByServiceIDAndVPCEndpointIDV2
@@ -101,6 +114,8 @@ var (
 	StopEBSVolumeAttachmentInstance                        = stopVolumeAttachmentInstance
 	UpdateTags                                             = updateTags
 	UpdateTagsV2                                           = updateTagsV2
+
+	WaitVolumeAttachmentCreated = waitVolumeAttachmentCreated
 )
 
 type (
