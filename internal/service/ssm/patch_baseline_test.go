@@ -64,7 +64,7 @@ func TestAccSSMPatchBaseline_basic(t *testing.T) {
 					acctest.CheckResourceAttrJMESPair(resourceName, names.AttrJSON, "Description", resourceName, names.AttrDescription),
 					acctest.CheckResourceAttrJMESPair(resourceName, names.AttrJSON, "ApprovedPatchesEnableNonSecurity", resourceName, "approved_patches_enable_non_security"),
 					acctest.CheckResourceAttrJMESPair(resourceName, names.AttrJSON, "OperatingSystem", resourceName, "operating_system"),
-					checkResourceAttrJMESNotExists(resourceName, name.AttrJSON, "ApprovalRules.PatchRules[0].ApproveAfterDays"),
+					checkResourceAttrJMESNotExists(resourceName, names.AttrJSON, "ApprovalRules.PatchRules[0].ApproveAfterDays"),
 				),
 			},
 			{
