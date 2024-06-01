@@ -57,6 +57,11 @@ func resourceLifecyclePolicy() *schema.Resource {
 				Required:     true,
 				ValidateFunc: verify.ValidARN,
 			},
+			"default_policy": {
+				Type:             schema.TypeString,
+				Optional:         true,
+				ValidateDiagFunc: enum.Validate[awstypes.DefaultPolicyTypeValues](),
+			},
 			"policy_details": {
 				Type:     schema.TypeList,
 				Required: true,
@@ -132,6 +137,28 @@ func resourceLifecyclePolicy() *schema.Resource {
 								},
 							},
 						},
+						"copy_tags": {
+							Type:          schema.TypeBool,
+							Optional:      true,
+							Default:       false,
+							ConflictsWith: []string{"policy_details.0.schedule"},
+							RequiredWith:  []string{"default_policy"},
+						},
+						"create_interval": {
+							Type:          schema.TypeInt,
+							Optional:      true,
+							Default:       1,
+							ValidateFunc:  validation.IntBetween(1, 7),
+							ConflictsWith: []string{"policy_details.0.schedule"},
+							RequiredWith:  []string{"default_policy"},
+						},
+						"extend_deletion": {
+							Type:          schema.TypeBool,
+							Optional:      true,
+							Default:       false,
+							ConflictsWith: []string{"policy_details.0.schedule"},
+							RequiredWith:  []string{"default_policy"},
+						},
 						"event_source": {
 							Type:     schema.TypeList,
 							Optional: true,
@@ -174,6 +201,13 @@ func resourceLifecyclePolicy() *schema.Resource {
 								},
 							},
 						},
+						"resource_type": {
+							Type:             schema.TypeString,
+							Optional:         true,
+							ValidateDiagFunc: enum.Validate[awstypes.ResourceTypeValues](),
+							ConflictsWith:    []string{"policy_details.0.resource_types", "policy_details.0.schedule"},
+							RequiredWith:     []string{"default_policy"},
+						},
 						"resource_types": {
 							Type:     schema.TypeList,
 							Optional: true,
@@ -182,6 +216,7 @@ func resourceLifecyclePolicy() *schema.Resource {
 								Type:             schema.TypeString,
 								ValidateDiagFunc: enum.Validate[awstypes.ResourceTypeValues](),
 							},
+							ConflictsWith: []string{"policy_details.0.resource_type", "default_policy"},
 						},
 						"resource_locations": {
 							Type:     schema.TypeList,
@@ -192,6 +227,14 @@ func resourceLifecyclePolicy() *schema.Resource {
 								Type:             schema.TypeString,
 								ValidateDiagFunc: enum.Validate[awstypes.ResourceLocationValues](),
 							},
+						},
+						"retain_interval": {
+							Type:          schema.TypeInt,
+							Optional:      true,
+							Default:       7,
+							ValidateFunc:  validation.IntBetween(1, 7),
+							ConflictsWith: []string{"policy_details.0.schedule"},
+							RequiredWith:  []string{"default_policy"},
 						},
 						names.AttrParameters: {
 							Type:     schema.TypeList,
@@ -209,6 +252,12 @@ func resourceLifecyclePolicy() *schema.Resource {
 									},
 								},
 							},
+						},
+						"policy_language": {
+							Type:             schema.TypeString,
+							Optional:         true,
+							Computed:         true,
+							ValidateDiagFunc: enum.Validate[awstypes.PolicyLanguageValues](),
 						},
 						"policy_type": {
 							Type:             schema.TypeString,
@@ -495,9 +544,13 @@ func resourceLifecyclePolicyCreate(ctx context.Context, d *schema.ResourceData, 
 	input := dlm.CreateLifecyclePolicyInput{
 		Description:      aws.String(d.Get(names.AttrDescription).(string)),
 		ExecutionRoleArn: aws.String(d.Get(names.AttrExecutionRoleARN).(string)),
-		PolicyDetails:    expandPolicyDetails(d.Get("policy_details").([]interface{})),
+		PolicyDetails:    expandPolicyDetails(d.Get("policy_details").([]interface{}), d.Get("default_policy").(string)),
 		State:            awstypes.SettablePolicyStateValues(d.Get(names.AttrState).(string)),
 		Tags:             getTagsIn(ctx),
+	}
+
+	if v, ok := d.GetOk("default_policy"); ok {
+		input.DefaultPolicy = awstypes.DefaultPolicyTypeValues(v.(string))
 	}
 
 	out, err := tfresource.RetryWhenIsA[*awstypes.InvalidRequestException](ctx, createRetryTimeout, func() (interface{}, error) {
@@ -534,7 +587,10 @@ func resourceLifecyclePolicyRead(ctx context.Context, d *schema.ResourceData, me
 	d.Set(names.AttrDescription, out.Policy.Description)
 	d.Set(names.AttrExecutionRoleARN, out.Policy.ExecutionRoleArn)
 	d.Set(names.AttrState, out.Policy.State)
-	if err := d.Set("policy_details", flattenPolicyDetails(out.Policy.PolicyDetails)); err != nil {
+	if aws.ToBool(out.Policy.DefaultPolicy) {
+		d.Set("default_policy", d.Get("default_policy"))
+	}
+	if err := d.Set("policy_details", flattenPolicyDetails(out.Policy.PolicyDetails, aws.ToBool(out.Policy.DefaultPolicy))); err != nil {
 		return sdkdiag.AppendErrorf(diags, "setting policy details %s", err)
 	}
 
@@ -562,7 +618,7 @@ func resourceLifecyclePolicyUpdate(ctx context.Context, d *schema.ResourceData, 
 			input.State = awstypes.SettablePolicyStateValues(d.Get(names.AttrState).(string))
 		}
 		if d.HasChange("policy_details") {
-			input.PolicyDetails = expandPolicyDetails(d.Get("policy_details").([]interface{}))
+			input.PolicyDetails = expandPolicyDetails(d.Get("policy_details").([]interface{}), d.Get("default_policy").(string))
 		}
 
 		log.Printf("[INFO] Updating lifecycle policy %s", d.Id())
@@ -620,7 +676,7 @@ func findLifecyclePolicyByID(ctx context.Context, conn *dlm.Client, id string) (
 	return output, nil
 }
 
-func expandPolicyDetails(cfg []interface{}) *awstypes.PolicyDetails {
+func expandPolicyDetails(cfg []interface{}, defaultPolicyValue string) *awstypes.PolicyDetails {
 	if len(cfg) == 0 || cfg[0] == nil {
 		return nil
 	}
@@ -629,6 +685,26 @@ func expandPolicyDetails(cfg []interface{}) *awstypes.PolicyDetails {
 
 	policyDetails := &awstypes.PolicyDetails{
 		PolicyType: awstypes.PolicyTypeValues(policyType),
+	}
+	if defaultPolicyValue != "" {
+		if v, ok := m["copy_tags"].(bool); ok {
+			policyDetails.CopyTags = aws.Bool(v)
+		}
+		if v, ok := m["create_interval"].(int); ok {
+			policyDetails.CreateInterval = aws.Int32(int32(v))
+		}
+		if v, ok := m["extend_deletion"].(bool); ok {
+			policyDetails.ExtendDeletion = aws.Bool(v)
+		}
+		if v, ok := m["resource_type"].(string); ok {
+			policyDetails.ResourceType = awstypes.ResourceTypeValues(v)
+		}
+		if v, ok := m["retain_interval"].(int); ok {
+			policyDetails.RetainInterval = aws.Int32(int32(v))
+		}
+	}
+	if v, ok := m["policy_language"].(string); ok {
+		policyDetails.PolicyLanguage = awstypes.PolicyLanguageValues(v)
 	}
 	if v, ok := m["resource_types"].([]interface{}); ok && len(v) > 0 {
 		policyDetails.ResourceTypes = flex.ExpandStringyValueList[awstypes.ResourceTypeValues](v)
@@ -655,7 +731,7 @@ func expandPolicyDetails(cfg []interface{}) *awstypes.PolicyDetails {
 	return policyDetails
 }
 
-func flattenPolicyDetails(policyDetails *awstypes.PolicyDetails) []map[string]interface{} {
+func flattenPolicyDetails(policyDetails *awstypes.PolicyDetails, defaultPolicyValue bool) []map[string]interface{} {
 	result := make(map[string]interface{})
 	result["resource_types"] = flex.FlattenStringyValueList(policyDetails.ResourceTypes)
 	result["resource_locations"] = flex.FlattenStringyValueList(policyDetails.ResourceLocations)
@@ -664,6 +740,18 @@ func flattenPolicyDetails(policyDetails *awstypes.PolicyDetails) []map[string]in
 	result[names.AttrSchedule] = flattenSchedules(policyDetails.Schedules)
 	result["target_tags"] = flattenTags(policyDetails.TargetTags)
 	result["policy_type"] = string(policyDetails.PolicyType)
+	result["policy_language"] = string(policyDetails.PolicyLanguage)
+
+	if defaultPolicyValue {
+		result["create_interval"] = aws.ToInt32(policyDetails.CreateInterval)
+		result["retain_interval"] = aws.ToInt32(policyDetails.RetainInterval)
+	} else {
+		result["create_interval"] = 0
+		result["retain_interval"] = 0
+	}
+	result["copy_tags"] = aws.ToBool(policyDetails.CopyTags)
+	result["extend_deletion"] = aws.ToBool(policyDetails.ExtendDeletion)
+	result["resource_type"] = string(policyDetails.ResourceType)
 
 	if policyDetails.Parameters != nil {
 		result[names.AttrParameters] = flattenParameters(policyDetails.Parameters)
