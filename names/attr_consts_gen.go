@@ -15,6 +15,7 @@ const (
 	AttrAccessKey                  = "access_key"
 	AttrAccountID                  = "account_id"
 	AttrAction                     = "action"
+	AttrActions                    = "actions"
 	AttrAddress                    = "address"
 	AttrAlias                      = "alias"
 	AttrAllocatedStorage           = "allocated_storage"
@@ -118,6 +119,7 @@ const (
 	AttrLastUpdatedDate            = "last_updated_date"
 	AttrLastUpdatedTime            = "last_updated_time"
 	AttrLaunchTemplate             = "launch_template"
+	AttrLocation                   = "location"
 	AttrLogGroupName               = "log_group_name"
 	AttrLoggingConfiguration       = "logging_configuration"
 	AttrMax                        = "max"
@@ -249,6 +251,7 @@ func ConstOrQuote(constant string) string {
 		"access_key":                    "AttrAccessKey",
 		"account_id":                    "AttrAccountID",
 		"action":                        "AttrAction",
+		"actions":                       "AttrActions",
 		"address":                       "AttrAddress",
 		"alias":                         "AttrAlias",
 		"allocated_storage":             "AttrAllocatedStorage",
@@ -352,6 +355,7 @@ func ConstOrQuote(constant string) string {
 		"last_updated_date":             "AttrLastUpdatedDate",
 		"last_updated_time":             "AttrLastUpdatedTime",
 		"launch_template":               "AttrLaunchTemplate",
+		"location":                      "AttrLocation",
 		"log_group_name":                "AttrLogGroupName",
 		"logging_configuration":         "AttrLoggingConfiguration",
 		"max":                           "AttrMax",
