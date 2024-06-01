@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	"github.com/YakDriver/regexache"
-	"github.com/hashicorp/terraform-provider-aws/internal/acctest"
+	acctestconsts "github.com/hashicorp/terraform-provider-aws/internal/acctest/const"
 	"github.com/hashicorp/terraform-provider-aws/internal/generate/common"
 	tfmaps "github.com/hashicorp/terraform-provider-aws/internal/maps"
 	"github.com/hashicorp/terraform-provider-aws/names"
@@ -119,7 +119,7 @@ func main() {
 		}
 
 		if resource.GenerateConfig {
-			additionalTfVars := tfmaps.Keys(resource.AdditionalTfVars)
+			additionalTfVars := tfmaps.Keys(resource.additionalTfVars)
 			slices.Sort(additionalTfVars)
 			testDirPath := path.Join("testdata", resource.Name)
 
@@ -152,7 +152,9 @@ type ResourceDatum struct {
 	ProviderNameUpper string
 	Name              string
 	TypeName          string
+	DestroyTakesT     bool
 	ExistsTypeName    string
+	ExistsTakesT      bool
 	FileName          string
 	Generator         string
 	NoImport          bool
@@ -167,7 +169,13 @@ type ResourceDatum struct {
 	GoImports         []goImport
 	GenerateConfig    bool
 	InitCodeBlocks    []codeBlock
-	AdditionalTfVars  map[string][]string
+	additionalTfVars  map[string]string
+}
+
+func (d ResourceDatum) AdditionalTfVars() map[string]string {
+	return tfmaps.ApplyToAllKeys(d.additionalTfVars, func(k string) string {
+		return acctestconsts.ConstOrQuote(k)
+	})
 }
 
 type goImport struct {
@@ -255,7 +263,7 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 	// Look first for tagging annotations.
 	d := ResourceDatum{
 		FileName:         v.fileName,
-		AdditionalTfVars: make(map[string][]string),
+		additionalTfVars: make(map[string]string),
 	}
 	dataSource := false
 	tagged := false
@@ -302,6 +310,15 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 
 			case "Testing":
 				args := common.ParseArgs(m[3])
+
+				if attr, ok := args.Keyword["destroyTakesT"]; ok {
+					if b, err := strconv.ParseBool(attr); err != nil {
+						v.errs = append(v.errs, fmt.Errorf("invalid destroyTakesT value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
+						continue
+					} else {
+						d.DestroyTakesT = b
+					}
+				}
 				if attr, ok := args.Keyword["existsType"]; ok {
 					if typeName, importSpec, err := parseIdentifierSpec(attr); err != nil {
 						v.errs = append(v.errs, fmt.Errorf("%s: %w", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName), err))
@@ -311,6 +328,14 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 						if importSpec != nil {
 							d.GoImports = append(d.GoImports, *importSpec)
 						}
+					}
+				}
+				if attr, ok := args.Keyword["existsTakesT"]; ok {
+					if b, err := strconv.ParseBool(attr); err != nil {
+						v.errs = append(v.errs, fmt.Errorf("invalid existsTakesT value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
+						continue
+					} else {
+						d.ExistsTakesT = b
 					}
 				}
 				if attr, ok := args.Keyword["generator"]; ok {
@@ -350,7 +375,6 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 					} else {
 						d.NoImport = b
 					}
-
 				}
 				if attr, ok := args.Keyword["preCheck"]; ok {
 					if b, err := strconv.ParseBool(attr); err != nil {
@@ -421,8 +445,8 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 			Code: fmt.Sprintf(`privateKeyPEM := acctest.TLSRSAPrivateKeyPEM(t, 2048)
 			certificatePEM := acctest.TLSRSAX509SelfSignedCertificatePEM(t, privateKeyPEM, %s)`, tlsKeyCN),
 		})
-		d.AdditionalTfVars["certificate_pem"] = []string{acctest.ConstOrQuote("certificate_pem"), "certificatePEM"}
-		d.AdditionalTfVars["private_key_pem"] = []string{acctest.ConstOrQuote("private_key_pem"), "privateKeyPEM"}
+		d.additionalTfVars["certificate_pem"] = "certificatePEM"
+		d.additionalTfVars["private_key_pem"] = "privateKeyPEM"
 
 	}
 
