@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	"github.com/YakDriver/regexache"
-	"github.com/hashicorp/terraform-provider-aws/internal/acctest"
+	acctestconsts "github.com/hashicorp/terraform-provider-aws/internal/acctest/const"
 	"github.com/hashicorp/terraform-provider-aws/internal/generate/common"
 	tfmaps "github.com/hashicorp/terraform-provider-aws/internal/maps"
 	"github.com/hashicorp/terraform-provider-aws/names"
@@ -148,26 +148,27 @@ const (
 )
 
 type ResourceDatum struct {
-	ProviderPackage   string
-	ProviderNameUpper string
-	Name              string
-	TypeName          string
-	ExistsTypeName    string
-	FileName          string
-	Generator         string
-	NoImport          bool
-	ImportStateID     string
-	ImportStateIDFunc string
-	ImportIgnore      []string
-	Implementation    implementation
-	Serialize         bool
-	PreCheck          bool
-	SkipEmptyTags     bool // TODO: Remove when we have a strategy for resources that have a minimum tag value length of 1
-	NoRemoveTags      bool
-	GoImports         []goImport
-	GenerateConfig    bool
-	InitCodeBlocks    []codeBlock
-	AdditionalTfVars  map[string][]string
+	ProviderPackage    string
+	ProviderNameUpper  string
+	Name               string
+	TypeName           string
+	ExistsTypeName     string
+	FileName           string
+	Generator          string
+	NoImport           bool
+	ImportStateID      string
+	ImportStateIDFunc  string
+	ImportIgnore       []string
+	Implementation     implementation
+	Serialize          bool
+	PreCheck           bool
+	SkipEmptyTags      bool // TODO: Remove when we have a strategy for resources that have a minimum tag value length of 1
+	NoRemoveTags       bool
+	GoImports          []goImport
+	GenerateConfig     bool
+	InitCodeBlocks     []codeBlock
+	AdditionalTfVars   map[string][]string
+	TagsUpdateForceNew bool
 }
 
 type goImport struct {
@@ -382,6 +383,15 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 						continue
 					}
 				}
+				// TODO: should probably be a parameter on @Tags
+				if attr, ok := args.Keyword["tagsUpdateForceNew"]; ok {
+					if b, err := strconv.ParseBool(attr); err != nil {
+						v.errs = append(v.errs, fmt.Errorf("invalid tagsUpdateForceNew value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
+						continue
+					} else {
+						d.TagsUpdateForceNew = b
+					}
+				}
 				if attr, ok := args.Keyword["skipEmptyTags"]; ok {
 					if b, err := strconv.ParseBool(attr); err != nil {
 						v.errs = append(v.errs, fmt.Errorf("invalid skipEmptyTags value: %q at %s. Should be boolean value.", attr, fmt.Sprintf("%s.%s", v.packageName, v.functionName)))
@@ -421,8 +431,8 @@ func (v *visitor) processFuncDecl(funcDecl *ast.FuncDecl) {
 			Code: fmt.Sprintf(`privateKeyPEM := acctest.TLSRSAPrivateKeyPEM(t, 2048)
 			certificatePEM := acctest.TLSRSAX509SelfSignedCertificatePEM(t, privateKeyPEM, %s)`, tlsKeyCN),
 		})
-		d.AdditionalTfVars["certificate_pem"] = []string{acctest.ConstOrQuote("certificate_pem"), "certificatePEM"}
-		d.AdditionalTfVars["private_key_pem"] = []string{acctest.ConstOrQuote("private_key_pem"), "privateKeyPEM"}
+		d.AdditionalTfVars["certificate_pem"] = []string{acctestconsts.ConstOrQuote("certificate_pem"), "certificatePEM"}
+		d.AdditionalTfVars["private_key_pem"] = []string{acctestconsts.ConstOrQuote("private_key_pem"), "privateKeyPEM"}
 
 	}
 
